@@ -71,13 +71,12 @@ Dashboard UI
 Interactive dashboard built using FastAPI, SQLite, Plotly, and JavaScript.
 ### Main Dashboard
 
-(Add screenshot here later)
+![Main Dashboard](dashboard.png)
 
 ### Detailed Data Page
 
-(Add screenshot here later)
+![Detailed Data](det%20data%201.png)
 
 ### Pipeline Status
 
-(Add screenshot here later)
-
+![Pipeline Status](pipeline.png)
