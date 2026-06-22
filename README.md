@@ -5,7 +5,7 @@ Designed and developed an automated aviation analytics platform that retrieves D
 ## 🚀 Features
 
 - Automated DGCA PDF scraping
-- Data extraction and cleaning
+- PDF data extraction and preprocessing using Pandas
 - SQLite database integration
 - FastAPI backend APIs
 - Interactive dashboard
@@ -23,14 +23,14 @@ Designed and developed an automated aviation analytics platform that retrieves D
 - pdfplumber
 
 
-## 📊  Project Workflow
+## Project Workflow
 
-1. Scrape DGCA monthly aviation reports
-2. Extract passenger and airline statistics
-3. Clean and standardize the data
-4. Store records in SQLite database
-5. Serve data through FastAPI endpoints
-6. Visualize insights through the dashboard
+1. Scraper downloads DGCA reports from the DGCA portal.
+2. Parser extracts aviation statistics from PDF files.
+3. Data is cleaned and normalized using Pandas.
+4. Processed records are stored in SQLite.
+5. FastAPI exposes analytics APIs.
+6. Dashboard visualizes KPIs, airline performance, and traffic trends.
 
 
 ## 👩‍💻 Author
