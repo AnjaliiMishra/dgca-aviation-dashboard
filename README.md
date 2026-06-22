@@ -38,6 +38,18 @@ Anjali Mishra
 B.Tech Data Science | UPES Dehradun
 
 
+## Tech Stack
+
+- Python
+- FastAPI
+- SQLite
+- Pandas
+- Plotly
+- JavaScript
+- HTML/CSS
+- pdfplumber
+
+
 ## 🏗️ System Architecture
 ```text
 DGCA Website
