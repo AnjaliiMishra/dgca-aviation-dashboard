@@ -13,13 +13,15 @@ Designed and developed an automated aviation analytics platform that retrieves D
 - Airline performance insights
 
 ## 🛠️ Tech Stack
-
 - Python
-- Pandas
-- SQLite
 - FastAPI
-- HTML/CSS/JavaScript
-- PDF Processing
+- SQLite
+- Pandas
+- Plotly
+- JavaScript
+- HTML/CSS
+- pdfplumber
+
 
 ## 📊  Project Workflow
 
@@ -36,18 +38,6 @@ Designed and developed an automated aviation analytics platform that retrieves D
 Anjali Mishra
 
 B.Tech Data Science | UPES Dehradun
-
-
-## Tech Stack
-
-- Python
-- FastAPI
-- SQLite
-- Pandas
-- Plotly
-- JavaScript
-- HTML/CSS
-- pdfplumber
 
 
 ## 🏗️ System Architecture
