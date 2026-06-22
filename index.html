@@ -1,0 +1,587 @@
+// UI State & Global Variables
+let currentYear = new Date().getFullYear();
+let activePage = 'dashboard';
+let trendsChart = null;
+let marketShareChart = null;
+let syncInterval = null;
+
+// API Base URL (relative path works since we are hosting both backend and frontend on the same port)
+const API_BASE = "";
+
+// Initialize app when DOM is fully loaded
+document.addEventListener('DOMContentLoaded', () => {
+    initNavigation();
+    initFilterControls();
+    loadYearOptions();
+    loadDashboardData();
+    loadDetailedAirlines();
+    loadDetailedData();
+    initSyncStatusPoller();
+    
+    // Initialise Lucide icons
+    lucide.createIcons();
+});
+
+// 1. Navigation Panel Control
+function initNavigation() {
+    const navItems = {
+        'nav-dashboard': 'page-dashboard',
+        'nav-data-table': 'page-data-table',
+        'nav-scraper': 'page-scraper'
+    };
+
+    Object.entries(navItems).forEach(([navId, pageId]) => {
+        const btn = document.getElementById(navId);
+        if (btn) {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                
+                // Toggle active class on nav links
+                document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+                btn.classList.add('active');
+                
+                // Toggle page views
+                document.querySelectorAll('.page-view').forEach(page => page.classList.remove('active'));
+                document.getElementById(pageId).classList.add('active');
+                
+                // Update active state
+                activePage = pageId.replace('page-', '');
+                
+                // Trigger page-specific loads
+                if (activePage === 'dashboard') {
+                    loadDashboardData();
+                } else if (activePage === 'data-table') {
+                    loadDetailedData();
+                }
+            });
+        }
+    });
+}
+
+// 2. Filter Controls Initialisation
+function initFilterControls() {
+    // Dashboard Filters
+    const filterYear = document.getElementById('filter-year');
+    const filterService = document.getElementById('filter-service');
+    const btnRefresh = document.getElementById('btn-refresh');
+
+    if (filterYear) filterYear.addEventListener('change', loadDashboardData);
+    if (filterService) filterService.addEventListener('change', loadDashboardData);
+    if (btnRefresh) btnRefresh.addEventListener('click', loadDashboardData);
+
+    // Detail Page Filters
+    document.getElementById('filter-detail-airline').addEventListener('change', loadDetailedData);
+    document.getElementById('filter-detail-month').addEventListener('change', loadDetailedData);
+    document.getElementById('filter-detail-scheduled').addEventListener('change', loadDetailedData);
+    
+    // Leaderboard Client Search
+    document.getElementById('search-leaderboard').addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        const rows = document.querySelectorAll('#leaderboard-tbody tr');
+        
+        rows.forEach(row => {
+            const airlineName = row.cells[0].textContent.toLowerCase();
+            if (airlineName.includes(query)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+
+    // CSV Export button
+    document.getElementById('btn-export').addEventListener('click', exportDetailedDataCSV);
+
+    // Sync button
+    document.getElementById('btn-sync-pipeline').addEventListener('click', startPipelineSync);
+}
+
+// 3. Year Dropdown Initialization
+async function loadYearOptions() {
+    const filterYear = document.getElementById('filter-year');
+    if (!filterYear) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/api/years`);
+        if (!response.ok) throw new Error("Failed to load years");
+        
+        const years = await response.json();
+        
+        // Clear options
+        filterYear.innerHTML = '';
+        
+        if (years.length === 0) {
+            // Default option if no data is in DB
+            const opt = document.createElement('option');
+            opt.value = "2025";
+            opt.textContent = "2025";
+            filterYear.appendChild(opt);
+        } else {
+            years.forEach(yr => {
+                const opt = document.createElement('option');
+                opt.value = yr;
+                opt.textContent = yr;
+                filterYear.appendChild(opt);
+            });
+        }
+        
+        // Auto-select latest year
+        filterYear.selectedIndex = 0;
+        
+    } catch (err) {
+        console.error("Error loading year options:", err);
+        // Fallback
+        filterYear.innerHTML = '<option value="2025">2025</option>';
+    }
+}
+
+// 4. Load Dashboard Data (KPIs + Charts + Leaderboard)
+async function loadDashboardData() {
+    const yearSelect = document.getElementById('filter-year');
+    const serviceSelect = document.getElementById('filter-service');
+    
+    if (!yearSelect) return;
+    
+    const year = yearSelect.value;
+    const serviceType = serviceSelect.value;
+    
+    // Build query URL
+    let url = `${API_BASE}/api/trends?year=${year}`;
+    if (serviceType) {
+        url += `&service_type=${serviceType}`;
+    }
+    
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Failed to load trends data");
+        const data = await response.json();
+        
+        updateKPIs(data.summary);
+        renderTrendsChart(data.monthly_trends);
+        renderMarketShareChart(data.market_share);
+        populateLeaderboard(data.airline_breakdown);
+        
+    } catch (err) {
+        console.error("Error loading dashboard data:", err);
+        showDashboardError();
+    }
+}
+
+// Update KPI cards in DOM
+function updateKPIs(summary) {
+    if (!summary) return;
+    
+    // Formatter helpers
+    const formatNumber = (num) => num ? num.toLocaleString('en-IN') : '0';
+    const formatLakhs = (pax) => {
+        if (!pax) return '0.00';
+        return (pax / 100000).toFixed(2); // Convert count to lakhs
+    };
+
+    document.getElementById('kpi-passengers').textContent = formatLakhs(summary.total_passengers);
+    document.getElementById('kpi-load-factor').textContent = summary.avg_load_factor ? summary.avg_load_factor.toFixed(1) : '0.0';
+    document.getElementById('kpi-departures').textContent = formatNumber(summary.total_departures);
+    document.getElementById('kpi-cargo').textContent = summary.total_cargo_tonnes ? summary.total_cargo_tonnes.toLocaleString('en-IN', {maximumFractionDigits: 1}) : '0.0';
+}
+
+function showDashboardError() {
+    document.getElementById('kpi-passengers').textContent = 'Error';
+    document.getElementById('kpi-load-factor').textContent = '--';
+    document.getElementById('kpi-departures').textContent = '--';
+    document.getElementById('kpi-cargo').textContent = '--';
+}
+
+// 5. Render Chart JS Trend Line + Bar Chart
+function renderTrendsChart(trends) {
+    const ctx = document.getElementById('chart-trends').getContext('2d');
+    
+    if (trendsChart) {
+        trendsChart.destroy();
+    }
+    
+    if (!trends || trends.length === 0) {
+        ctx.clearRect(0, 0, 400, 400);
+        return;
+    }
+    
+    const labels = trends.map(t => t.month);
+    const passengerData = trends.map(t => t.passengers / 100000); // in lakhs
+    const loadFactors = trends.map(t => t.load_factor);
+    
+    trendsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Passengers (Lakhs)',
+                    data: passengerData,
+                    backgroundColor: 'rgba(99, 102, 241, 0.6)',
+                    borderColor: '#6366f1',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Load Factor (%)',
+                    data: loadFactors,
+                    type: 'line',
+                    borderColor: '#10b981',
+                    borderWidth: 3,
+                    pointBackgroundColor: '#10b981',
+                    pointHoverRadius: 6,
+                    tension: 0.35,
+                    fill: false,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#94a3b8', font: { family: 'Inter', size: 11 } }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    backgroundColor: '#1e293b',
+                    titleColor: '#f8fafc',
+                    bodyColor: '#f8fafc',
+                    borderColor: 'rgba(255,255,255,0.1)',
+                    borderWidth: 1
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.04)' },
+                    ticks: { color: '#94a3b8', font: { family: 'Inter' } }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    grid: { color: 'rgba(255,255,255,0.04)' },
+                    ticks: { color: '#94a3b8' },
+                    title: { display: true, text: 'Passengers (Lakhs)', color: '#94a3b8' }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    grid: { drawOnChartArea: false }, // only want grid lines for passenger axis
+                    ticks: { color: '#94a3b8' },
+                    min: 0,
+                    max: 100,
+                    title: { display: true, text: 'Load Factor (%)', color: '#94a3b8' }
+                }
+            }
+        }
+    });
+}
+
+// 6. Render Market Share Doughnut Chart
+function renderMarketShareChart(shares) {
+    const ctx = document.getElementById('chart-market-share').getContext('2d');
+    
+    if (marketShareChart) {
+        marketShareChart.destroy();
+    }
+    
+    if (!shares || shares.length === 0) {
+        ctx.clearRect(0, 0, 400, 400);
+        return;
+    }
+    
+    // Take top 6 airlines, group rest as "Others"
+    let displayShares = [];
+    if (shares.length > 6) {
+        const top6 = shares.slice(0, 6);
+        const othersCount = shares.slice(6).reduce((sum, item) => sum + item.total_passengers, 0);
+        
+        displayShares = [...top6];
+        if (othersCount > 0) {
+            displayShares.push({
+                airline_name: 'Others',
+                total_passengers: othersCount
+            });
+        }
+    } else {
+        displayShares = [...shares];
+    }
+    
+    const labels = displayShares.map(s => s.airline_name);
+    const data = displayShares.map(s => s.total_passengers);
+    
+    // Sleek dark palette color list
+    const colors = [
+        '#6366f1', // Indigo
+        '#3b82f6', // Blue
+        '#10b981', // Emerald
+        '#f59e0b', // Amber
+        '#ec4899', // Pink
+        '#8b5cf6', // Violet
+        '#64748b'  // Muted Slate (for others)
+    ];
+    
+    marketShareChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 2,
+                borderColor: '#121826'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: '#94a3b8',
+                        padding: 15,
+                        font: { family: 'Inter', size: 10 }
+                    }
+                },
+                tooltip: {
+                    backgroundColor: '#1e293b',
+                    borderColor: 'rgba(255,255,255,0.1)',
+                    borderWidth: 1,
+                    callbacks: {
+                        label: function(context) {
+                            const val = context.raw;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const pct = ((val / total) * 100).toFixed(1);
+                            return ` ${context.label}: ${val.toLocaleString('en-IN')} (${pct}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// 7. Populate Leaderboard Summary Table
+function populateLeaderboard(breakdown) {
+    const tbody = document.getElementById('leaderboard-tbody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    if (!breakdown || breakdown.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="no-records">No traffic data found for the selected filters.</td></tr>';
+        return;
+    }
+    
+    breakdown.forEach(row => {
+        const tr = document.createElement('tr');
+        
+        const formatNum = (num) => num ? num.toLocaleString('en-IN') : '0';
+        
+        tr.innerHTML = `
+            <td><strong>${row.airline_name}</strong></td>
+            <td class="text-right">${formatNum(row.passengers)}</td>
+            <td class="text-right">${formatNum(row.departures)}</td>
+            <td class="text-right">${row.load_factor ? row.load_factor.toFixed(1) : '0.0'}%</td>
+            <td class="text-right">${row.cargo ? row.cargo.toLocaleString('en-IN', {maximumFractionDigits: 1}) : '0.0'}</td>
+            <td class="text-right">${row.weight_load_factor ? row.weight_load_factor.toFixed(1) : '0.0'}%</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// 8. Granular Detailed Data Page
+async function loadDetailedAirlines() {
+    const select = document.getElementById('filter-detail-airline');
+    if (!select) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/airlines`);
+        if (!response.ok) throw new Error();
+        const airlines = await response.json();
+        
+        select.innerHTML = '<option value="">All Airlines</option>';
+        airlines.forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a.id;
+            opt.textContent = a.name;
+            select.appendChild(opt);
+        });
+    } catch (err) {
+        console.error("Failed to load airlines list:", err);
+    }
+}
+
+async function loadDetailedData() {
+    const tbody = document.getElementById('detail-tbody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '<tr><td colspan="13" class="loading-state">Loading detailed stats...</td></tr>';
+    
+    // Fetch values from filters
+    const yearSelect = document.getElementById('filter-year');
+    const airlineId = document.getElementById('filter-detail-airline').value;
+    const month = document.getElementById('filter-detail-month').value;
+    const scheduled = document.getElementById('filter-detail-scheduled').value;
+    
+    const year = yearSelect ? yearSelect.value : 2025;
+    
+    let url = `${API_BASE}/api/traffic?year=${year}`;
+    if (airlineId) url += `&airline_id=${airlineId}`;
+    if (month) url += `&month=${month}`;
+    if (scheduled) url += `&scheduled=${scheduled}`;
+    
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Fail");
+        const records = await response.json();
+        
+        tbody.innerHTML = '';
+        if (records.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="13" class="no-records">No detailed traffic records found matching filter options.</td></tr>';
+            return;
+        }
+        
+        records.forEach(row => {
+            const tr = document.createElement('tr');
+            
+            const formatNum = (num) => num ? num.toLocaleString('en-IN') : '0';
+            const lakhs = (val) => val ? (val/100000).toFixed(2) : '0.00';
+            
+            tr.innerHTML = `
+                <td><strong>${row.airline_name}</strong></td>
+                <td>${row.year}</td>
+                <td>${row.month}</td>
+                <td>${row.service_type}</td>
+                <td><span class="badge ${row.scheduled ? 'badge-scheduled' : 'badge-nonscheduled'}">${row.scheduled ? 'Sched' : 'Non-Sched'}</span></td>
+                <td class="text-right">${formatNum(row.departures)}</td>
+                <td class="text-right">${row.hours_flown ? row.hours_flown.toFixed(0) : '0'}</td>
+                <td class="text-right">${row.kms_flown ? formatNum(row.kms_flown) : '0'}</td>
+                <td class="text-right">${formatNum(row.passengers_carried)}</td>
+                <td class="text-right">${lakhs(row.pax_kms_performed)}</td>
+                <td class="text-right">${row.pax_load_factor ? row.pax_load_factor.toFixed(1) : '0.0'}%</td>
+                <td class="text-right">${row.cargo_total ? row.cargo_total.toLocaleString('en-IN', {maximumFractionDigits: 1}) : '0.0'}</td>
+                <td class="text-right">${row.weight_load_factor ? row.weight_load_factor.toFixed(1) : '0.0'}%</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="13" class="no-records">Error retrieving traffic data from server.</td></tr>';
+    }
+}
+
+// 9. Export Detailed Data to CSV File
+function exportDetailedDataCSV() {
+    const table = document.getElementById('detail-table');
+    if (!table) return;
+    
+    let csv = [];
+    const rows = table.querySelectorAll('tr');
+    
+    for (let i = 0; i < rows.length; i++) {
+        // Skip header display formatting or extract text cleanly
+        const row = [];
+        const cols = rows[i].querySelectorAll('td, th');
+        
+        for (let j = 0; j < cols.length; j++) {
+            // Remove comma from numbers to prevent CSV breakage
+            let text = cols[j].textContent.trim();
+            text = text.replace(/,/g, '');
+            // Wrap in quotes
+            row.push(`"${text}"`);
+        }
+        csv.push(row.join(','));
+    }
+    
+    // Download triggers
+    const csvContent = "data:text/csv;charset=utf-8," + csv.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `dgca_aviation_traffic_${document.getElementById('filter-year').value}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// 10. Pipeline Crawl Synchronization Status Poller
+function initSyncStatusPoller() {
+    // Poll the backend every 2 seconds for logs and statuses
+    syncInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`${API_BASE}/api/sync/status`);
+            if (!response.ok) return;
+            const data = await response.json();
+            
+            updateSyncUI(data);
+        } catch (e) {
+            console.error("Poller failed:", e);
+        }
+    }, 2000);
+}
+
+function updateSyncUI(data) {
+    const statusText = document.getElementById('status-db-info');
+    const consoleLogs = document.getElementById('log-console');
+    const btnSync = document.getElementById('btn-sync-pipeline');
+    const statusDot = document.querySelector('.status-dot');
+    
+    // Render console logs
+    if (data.logs && data.logs.length > 0) {
+        consoleLogs.textContent = data.logs.join('\n');
+        // Auto scroll console to bottom
+        consoleLogs.scrollTop = consoleLogs.scrollHeight;
+    }
+    
+    if (data.status === 'running') {
+        statusText.textContent = `Syncing Year ${data.year} in progress...`;
+        statusDot.className = 'status-dot busy';
+        btnSync.disabled = true;
+        btnSync.innerHTML = '<i data-lucide="refresh-cw" class="spin"></i> Syncing...';
+    } else {
+        statusText.textContent = `Idle. Connected to database.`;
+        statusDot.className = 'status-dot online';
+        btnSync.disabled = false;
+        btnSync.innerHTML = '<i data-lucide="refresh-cw"></i> Start Crawling & Ingest';
+    }
+    lucide.createIcons();
+}
+
+async function startPipelineSync() {
+    const yearInput = document.getElementById('sync-year-input');
+    const year = parseInt(yearInput.value, 10);
+    
+    if (isNaN(year) || year < 2010 || year > 2030) {
+        alert("Please enter a valid year between 2010 and 2030.");
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/sync?year=${year}`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            console.log(`Pipeline crawl started for year ${year}`);
+            // Force status reload
+            const statusRes = await fetch(`${API_BASE}/api/sync/status`);
+            const statusData = await statusRes.json();
+            updateSyncUI(statusData);
+            
+            // Go to scraper tab if not already there to view console logs
+            // document.getElementById('nav-scraper').click();
+        } else {
+            const err = await response.json();
+            alert(`Failed to start synchronization: ${err.detail}`);
+        }
+    } catch (err) {
+        console.error("Sync error:", err);
+        alert("Network error. Connection to backend failed.");
+    }
+}

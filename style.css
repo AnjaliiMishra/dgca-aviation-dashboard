@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Interactive DGCA India Aviation Statistics Dashboard featuring airline performance, passenger trends, load factors, and cargo statistics.">
+    <title>DGCA India Aviation Statistics Dashboard</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Chart.js and Lucide Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <!-- Background glow elements for glassmorphic effect -->
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+    <div class="bg-glow bg-glow-3"></div>
+
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-icon">
+                    <i data-lucide="plane-takeoff"></i>
+                </div>
+                <h2>AeroStats</h2>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" id="nav-dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" id="nav-data-table">
+                    <i data-lucide="table"></i>
+                    <span>Detailed Data</span>
+                </a>
+                <a href="#" class="nav-item" id="nav-scraper">
+                    <i data-lucide="refresh-cw"></i>
+                    <span>Pipeline Status</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <p>Data Source: DGCA India</p>
+                <span class="badge">V1.0 Live</span>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Top Header & Filter Bar -->
+            <header class="top-header">
+                <div class="header-title">
+                    <span class="subtitle">Aviation Performance & Analytics</span>
+                    <h1 id="main-heading">DGCA Aviation Statistics</h1>
+                </div>
+                
+                <!-- Filter Controls -->
+                <div class="filter-panel glass-card">
+                    <div class="filter-group">
+                        <label for="filter-year">
+                            <i data-lucide="calendar"></i> Year
+                        </label>
+                        <select id="filter-year" class="custom-select">
+                            <!-- Dynamically loaded -->
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="filter-service">
+                            <i data-lucide="globe"></i> Service Type
+                        </label>
+                        <select id="filter-service" class="custom-select">
+                            <option value="">Domestic & International</option>
+                            <option value="Domestic">Domestic Only</option>
+                            <option value="International">International Only</option>
+                        </select>
+                    </div>
+                    
+                    <button id="btn-refresh" class="btn btn-primary btn-icon-only" title="Refresh Data">
+                        <i data-lucide="rotate-cw"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Page 1: Dashboard View -->
+            <div id="page-dashboard" class="page-view active">
+                <!-- KPI Metrics Summary Grid -->
+                <section class="metrics-grid">
+                    <!-- Passengers Card -->
+                    <div class="kpi-card glass-card">
+                        <div class="kpi-icon icon-blue">
+                            <i data-lucide="users"></i>
+                        </div>
+                        <div class="kpi-details">
+                            <h3>Passengers Carried</h3>
+                            <div class="kpi-value-container">
+                                <span class="kpi-value" id="kpi-passengers">--</span>
+                                <span class="kpi-unit">Lakhs</span>
+                            </div>
+                            <p class="kpi-desc">Total travelers in selected year</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Passenger Load Factor Card -->
+                    <div class="kpi-card glass-card">
+                        <div class="kpi-icon icon-emerald">
+                            <i data-lucide="percent"></i>
+                        </div>
+                        <div class="kpi-details">
+                            <h3>Avg. Load Factor</h3>
+                            <div class="kpi-value-container">
+                                <span class="kpi-value" id="kpi-load-factor">--</span>
+                                <span class="kpi-unit">%</span>
+                            </div>
+                            <p class="kpi-desc">Seat utilization efficiency</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Departures Card -->
+                    <div class="kpi-card glass-card">
+                        <div class="kpi-icon icon-indigo">
+                            <i data-lucide="plane"></i>
+                        </div>
+                        <div class="kpi-details">
+                            <h3>Total Departures</h3>
+                            <div class="kpi-value-container">
+                                <span class="kpi-value" id="kpi-departures">--</span>
+                            </div>
+                            <p class="kpi-desc">Scheduled & Non-Scheduled flights</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Cargo Card -->
+                    <div class="kpi-card glass-card">
+                        <div class="kpi-icon icon-amber">
+                            <i data-lucide="package"></i>
+                        </div>
+                        <div class="kpi-details">
+                            <h3>Cargo Handled</h3>
+                            <div class="kpi-value-container">
+                                <span class="kpi-value" id="kpi-cargo">--</span>
+                                <span class="kpi-unit">Tons</span>
+                            </div>
+                            <p class="kpi-desc">Freight & mail total weight</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Visualization Panel (Charts) -->
+                <section class="charts-grid">
+                    <!-- Traffic Trends Chart -->
+                    <div class="chart-card glass-card">
+                        <div class="chart-header">
+                            <div class="chart-header-left">
+                                <i data-lucide="trending-up" class="text-blue"></i>
+                                <h3>Monthly Traffic Trends</h3>
+                            </div>
+                            <span class="chart-metric-info">Passengers & Load Factor</span>
+                        </div>
+                        <div class="chart-body">
+                            <canvas id="chart-trends"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Market Share Chart -->
+                    <div class="chart-card glass-card">
+                        <div class="chart-header">
+                            <div class="chart-header-left">
+                                <i data-lucide="pie-chart" class="text-emerald"></i>
+                                <h3>Airline Market Share</h3>
+                            </div>
+                            <span class="chart-metric-info">Passenger Distribution</span>
+                        </div>
+                        <div class="chart-body">
+                            <canvas id="chart-market-share"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Airline Performance Summary Leaderboard -->
+                <section class="table-section glass-card">
+                    <div class="table-header">
+                        <div class="table-header-left">
+                            <i data-lucide="award"></i>
+                            <h3>Airline Performance Summary</h3>
+                        </div>
+                        <div class="table-actions">
+                            <div class="search-box">
+                                <i data-lucide="search"></i>
+                                <input type="text" id="search-leaderboard" placeholder="Search airlines...">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table class="data-grid" id="leaderboard-table">
+                            <thead>
+                                <tr>
+                                    <th>Airline</th>
+                                    <th class="text-right">Passengers</th>
+                                    <th class="text-right">Departures</th>
+                                    <th class="text-right">Avg. Load Factor (%)</th>
+                                    <th class="text-right">Cargo (Tons)</th>
+                                    <th class="text-right">Weight Load Factor (%)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboard-tbody">
+                                <!-- Loaded dynamically -->
+                                <tr>
+                                    <td colspan="6" class="loading-state">Loading airline summaries...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Page 2: Granular Detailed Data View -->
+            <div id="page-data-table" class="page-view">
+                <section class="table-section glass-card full-table-section">
+                    <div class="table-header">
+                        <div class="table-header-left">
+                            <i data-lucide="database"></i>
+                            <h3>Monthly Traffic Records</h3>
+                        </div>
+                        
+                        <div class="table-actions">
+                            <select id="filter-detail-airline" class="custom-select select-sm">
+                                <option value="">All Airlines</option>
+                            </select>
+                            <select id="filter-detail-month" class="custom-select select-sm">
+                                <option value="">All Months</option>
+                                <option value="JAN">January</option>
+                                <option value="FEB">February</option>
+                                <option value="MAR">March</option>
+                                <option value="APR">April</option>
+                                <option value="MAY">May</option>
+                                <option value="JUN">June</option>
+                                <option value="JUL">July</option>
+                                <option value="AUG">August</option>
+                                <option value="SEP">September</option>
+                                <option value="OCT">October</option>
+                                <option value="NOV">November</option>
+                                <option value="DEC">December</option>
+                            </select>
+                            <select id="filter-detail-scheduled" class="custom-select select-sm">
+                                <option value="">All Services</option>
+                                <option value="1">Scheduled</option>
+                                <option value="0">Non-Scheduled</option>
+                            </select>
+                            <button id="btn-export" class="btn btn-secondary btn-sm">
+                                <i data-lucide="download"></i> Export CSV
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container">
+                        <table class="data-grid text-sm" id="detail-table">
+                            <thead>
+                                <tr>
+                                    <th>Airline</th>
+                                    <th>Year</th>
+                                    <th>Month</th>
+                                    <th>Service</th>
+                                    <th>Type</th>
+                                    <th class="text-right">Flights</th>
+                                    <th class="text-right">Hours</th>
+                                    <th class="text-right">Kms (K)</th>
+                                    <th class="text-right">Passengers</th>
+                                    <th class="text-right">Pax Kms (L)</th>
+                                    <th class="text-right">Load Factor</th>
+                                    <th class="text-right">Cargo (Tons)</th>
+                                    <th class="text-right">Weight Factor</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detail-tbody">
+                                <!-- Loaded dynamically -->
+                                <tr>
+                                    <td colspan="13" class="loading-state">Loading detailed stats...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Page 3: Pipeline Manager View -->
+            <div id="page-scraper" class="page-view">
+                <section class="glass-card status-section">
+                    <div class="status-header">
+                        <i data-lucide="refresh-cw" class="text-blue"></i>
+                        <h3>Data Pipeline Status</h3>
+                    </div>
+                    <div class="status-body">
+                        <div class="status-indicator">
+                            <span class="status-dot online"></span>
+                            <div class="status-info">
+                                <h4>Pipeline Database</h4>
+                                <p id="status-db-info">Connected - 604 records cached</p>
+                            </div>
+                        </div>
+                        
+                        <div class="pipeline-actions">
+                            <p class="desc">The data pipeline downloads PDF/Excel reports directly from the DGCA India S3 repository, parses them, and populates the SQLite database.</p>
+                            
+                            <div class="year-selector-card">
+                                <h4>Sync New Data</h4>
+                                <p>Select the year to crawl and sync statistics from the DGCA portal.</p>
+                                <div class="sync-controls">
+                                    <input type="number" id="sync-year-input" value="2025" min="2010" max="2030" class="custom-input">
+                                    <button id="btn-sync-pipeline" class="btn btn-primary">
+                                        <i data-lucide="refresh-cw"></i> Start Crawling & Ingest
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="log-console-container">
+                            <h4>Console Logs</h4>
+                            <pre id="log-console">System ready. Click 'Start Crawling & Ingest' to run scraper and parser...</pre>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Custom JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>
